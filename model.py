@@ -276,7 +276,7 @@ def masked_accuracy(logits, labels):
 
     return (preds[mask] == labels[mask]).float().mean()
 
-num_steps = 3000
+num_steps = 3600
 log_every = 100
 max_grad_norm = 1.0
 eval_every = 125
@@ -370,9 +370,9 @@ for step in pbar:
         eval_acc_avg = eval_acc_total / num_eval_batches
 
         pbar.write(
-            f"EVAL step {step:5d} | "
+            f"\n=====>EVAL step {step:5d} | "
             f"eval_loss {eval_loss_avg:.4f} | "
-            f"eval_acc {eval_acc_avg:.4f}"
+            f"eval_acc {eval_acc_avg:.4f}<======\n"
         )
 
         if eval_loss_avg <= target_eval_loss:
