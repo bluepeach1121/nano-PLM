@@ -276,10 +276,18 @@ def masked_accuracy(logits, labels):
 
     return (preds[mask] == labels[mask]).float().mean()
 
-num_steps = 2500
+num_steps = 3000
 log_every = 100
 max_grad_norm = 1.0
-eval_every = 500
+eval_every = 125
+
+#late stage eval is for when the eval loss gets below 2.0, so we can track
+#more closely at the later stage. Our goal is to reduce the amount of time
+#before we get to 1.86 loss (similar to modded-nanogpt)
+late_stage_eval_every = 50
+late_stage_eval_threshold = 2.0
+
+target_eval_loss = 1.86
 num_eval_batches = 5
 
 model.train()
@@ -366,6 +374,22 @@ for step in pbar:
             f"eval_loss {eval_loss_avg:.4f} | "
             f"eval_acc {eval_acc_avg:.4f}"
         )
+
+        if eval_loss_avg <= target_eval_loss:
+            torch.cuda.synchronize()
+            elapsed = time.time() - start_time
+
+            pbar.write(
+                f"TARGET REACHED | step {step} | "
+                f"eval_loss {eval_loss_avg:.4f} | "
+                f"time {elapsed:.1f}s"
+            )
+            break
+
+        if eval_loss_avg < late_stage_eval_threshold and eval_every != late_stage_eval_every:
+            old_eval_every = eval_every
+            eval_every = late_stage_eval_every
+            pbar.write(f"eval changed from {old_eval_every} to {eval_every}")
 
         model.train()
 
