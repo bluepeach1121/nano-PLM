@@ -376,7 +376,6 @@ for step in pbar:
         )
 
         if eval_loss_avg <= target_eval_loss:
-            torch.cuda.synchronize()
             elapsed = time.time() - start_time
 
             pbar.write(
