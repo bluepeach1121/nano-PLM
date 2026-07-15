@@ -276,10 +276,10 @@ def masked_accuracy(logits, labels):
 
     return (preds[mask] == labels[mask]).float().mean()
 
-num_steps = 3600
+num_steps = 3500
 log_every = 100
 max_grad_norm = 1.0
-eval_every = 125
+eval_every = 250
 
 #late stage eval is for when the eval loss gets below 2.0, so we can track
 #more closely at the later stage. Our goal is to reduce the amount of time
