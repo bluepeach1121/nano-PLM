@@ -251,7 +251,6 @@ def split_params_for_muon(model):
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model = model.to(device)
-
 muon_params, adamw_params, muon_names, adamw_names = split_params_for_muon(model)
 
 muon_optim = torch.optim.Muon(
@@ -266,6 +265,7 @@ adamw_optim = torch.optim.AdamW(
     lr=1e-4,
     weight_decay=0.01,
 )
+model = torch.compile(model)
 
 def masked_accuracy(logits, labels):
     preds = logits.argmax(dim=-1)
@@ -395,7 +395,7 @@ for step in pbar:
 
 torch.save(
     {
-        "model": model.state_dict(),
+        "model": model._orig_mod.state_dict(),
         "config": {
             "vocab_size": VOCAB_SIZE,
             "context_length": CONTEXT_LENGTH,
