@@ -9,7 +9,9 @@ The LLM is meant to:
 
 The only fully LLM written code were the test codes (which are in a private colab file to ensure that my written code was working).
 
-GPU --------> 1 A100 (takes about 45 mins).
+The orig_model file contains the un-optimised model with the exception of the torch.nn.functional.scaled_dot_product_attention instead of unoptimised attention. Even then the original code without the FlashAttention is just commented out.
+
+GPU --------> 1 A100 (takes about 45 mins on orig_model).
 
 Dataset ----> trained on 11000 samples out of 19.5 million. This was made easy by the fact that python can read .gz files directly so I didnt need to unzip the whole file.
 
@@ -23,7 +25,7 @@ Implementation Breakdown:
 - In `model.py`, The transformer is a bidirectional masked protein Transformer with LLaMA-like components. Output is MLM logits of shape `[batch, seq_len, vocab_size]`.
 - The run used a batch size of 512, context length 512, 3400 training steps, evaluation every 500 steps. Future improvements would mainly be around making the entire thing train faster. Right now, the first implemetation takes about 50 minutes on 1 A100.
 
-## Training
+## Training (Note this trains the optimised model)
 
 Training can be started in terminal with:
 
