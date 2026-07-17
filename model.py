@@ -84,7 +84,6 @@ class Rotary_embed(nn.Module):
         return torch.cat((y1, y2), dim=-1).type_as(x)
 
 import numpy as np
-#ehm, first large run, I ran into memory issue due to attention calculation storing the full matrix
 class BidiAttention(nn.Module):
     def __init__(self, d_model, n_heads):
         super().__init__()
@@ -96,18 +95,15 @@ class BidiAttention(nn.Module):
         self.head_dim = d_model // n_heads
         self.rotary = Rotary_embed(self.head_dim)
 
-        self.q_proj = nn.Linear(d_model, d_model, bias=False)
-        self.k_proj = nn.Linear(d_model, d_model, bias=False)
-        self.v_proj = nn.Linear(d_model, d_model, bias=False)
+        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
         self.out_proj = nn.Linear(d_model, d_model, bias=False)
 
     def forward(self, x, pad_mask=None):
         B, T, D = x.shape
 
         #projection of q, k and v
-        q = self.q_proj(x)
-        k = self.k_proj(x)
-        v = self.v_proj(x)
+        qkv = self.qkv_proj(x)
+        q, k, v = qkv.chunk(3, dim=-1)
 
         #[8, 512, 256] ===> [8, 512, 4, 64] ===> [8, 4, 512, 64]
         #[B, T,   D]   ========================> [B, N_HEAD, T, D_MODEL]
