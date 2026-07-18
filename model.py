@@ -59,25 +59,33 @@ class SwiGLU(nn.Module):
 #only big difference is the arrangement of the shape
 #paper -----> https://arxiv.org/pdf/2104.09864
 class Rotary_embed(nn.Module):
-    def __init__(self, head_dim):
+    def __init__(self, head_dim, context_length):
         super().__init__()
         self.head_dim = head_dim
-        assert head_dim % 2 ==0
+        self.context_length = context_length
+        assert head_dim % 4 ==0
 
         angular_freq = (1/1024) ** torch.linspace(
             0, 1, steps=head_dim//4, dtype=torch.float32
             )
-        self.register_buffer(
-            name="angular_freq",
-            tensor=torch.cat([angular_freq, angular_freq.new_zeros(head_dim//4)])
-            )
 
+        angular_freq = torch.cat(
+            [angular_freq, angular_freq.new_zeros(head_dim // 4)]
+        )
+        pos = torch.arange(self.context_length, dtype=torch.float32)
+        theta = torch.outer(pos, angular_freq)[None, None,:, :]
+
+        self.register_buffer("cos", theta.cos(), persistent=False)
+        self.register_buffer("sin", theta.sin(), persistent=False)
+        
     def forward(self, x):
         #x.size(2) not 1, we want for sequence lenght T, x shape: [B, H, T, head_dim]
         #angular_freq has shape [16] + [16] = [32], 16 is from 64//4
-        pos = torch.arange(x.size(2), dtype=torch.float32, device=x.device)
-        theta = torch.outer(pos, self.angular_freq)[None, None,:, :]
-        cos, sin = theta.cos(), theta.sin()
+        T = x.size(2)
+        if T > self.context_length:
+            raise ValueError("T is greater than context length")
+        cos = self.cos[:, :, :T, :]
+        sin = self.sin[:, :, :T, :] 
         x1, x2 = x.to(dtype=torch.float32).chunk(2, dim=-1)
         y1 = x1 * cos + x2 * sin
         y2 = x1 * (-sin) + x2 * cos
@@ -85,7 +93,7 @@ class Rotary_embed(nn.Module):
 
 import numpy as np
 class BidiAttention(nn.Module):
-    def __init__(self, d_model, n_heads):
+    def __init__(self, d_model, n_heads, context_length):
         super().__init__()
 
         assert d_model % n_heads == 0
@@ -93,17 +101,20 @@ class BidiAttention(nn.Module):
         self.d_model = d_model
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
-        self.rotary = Rotary_embed(self.head_dim)
+        self.rotary = Rotary_embed(self.head_dim, context_length)
 
-        self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
+        self.q_proj = nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = nn.Linear(d_model, d_model, bias=False)
+        self.v_proj = nn.Linear(d_model, d_model, bias=False)
         self.out_proj = nn.Linear(d_model, d_model, bias=False)
 
     def forward(self, x, pad_mask=None):
         B, T, D = x.shape
 
         #projection of q, k and v
-        qkv = self.qkv_proj(x)
-        q, k, v = qkv.chunk(3, dim=-1)
+        q = self.q_proj(x)
+        k = self.k_proj(x)
+        v = self.v_proj(x)
 
         #[8, 512, 256] ===> [8, 512, 4, 64] ===> [8, 4, 512, 64]
         #[B, T,   D]   ========================> [B, N_HEAD, T, D_MODEL]
@@ -153,11 +164,11 @@ class BidiAttention(nn.Module):
         return out
 
 class TransformerBlock(nn.Module):
-    def __init__(self, d_model, n_heads, d_ff):
+    def __init__(self, d_model, n_heads, d_ff, context_length):
         super().__init__()
 
         self.norm1 = RMSNorm(d_model)
-        self.attn = BidiAttention(d_model, n_heads)
+        self.attn = BidiAttention(d_model, n_heads, context_length)
         self.norm2 = RMSNorm(d_model)
         self.mlp = SwiGLU(d_model, d_ff)
 
@@ -172,7 +183,7 @@ class ProteinMLM(nn.Module):
 
         self.token_emb = nn.Embedding(vocab_size, d_model)
         self.blocks = nn.ModuleList([
-            TransformerBlock(d_model, n_heads, d_ff)
+            TransformerBlock(d_model, n_heads, d_ff, context_length)
             for _ in range(n_layers)
         ])
         self.norm = RMSNorm(d_model)
