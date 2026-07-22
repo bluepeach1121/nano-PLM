@@ -101,6 +101,8 @@ class BidiAttention(nn.Module):
         self.d_model = d_model
         self.n_heads = n_heads
         self.head_dim = d_model // n_heads
+        self.q_norm = RMSNorm(self.head_dim)
+        self.k_norm = RMSNorm(self.head_dim)
         self.rotary = Rotary_embed(self.head_dim, context_length)
 
         self.q_proj = nn.Linear(d_model, d_model, bias=False)
@@ -127,6 +129,10 @@ class BidiAttention(nn.Module):
         k = k.view(B, T, self.n_heads, self.head_dim).transpose(1,2)
         v = v.view(B, T, self.n_heads, self.head_dim).transpose(1,2)
 
+        #qk norm
+        q = self.q_norm(q)
+        k = self.k_norm(k)
+        #applying rope
         q = self.rotary(q)
         k = self.rotary(k)
 
