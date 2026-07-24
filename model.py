@@ -45,7 +45,7 @@ class SwiGLU(nn.Module):
         # down_proj: [B, T, d_ff] -> [B, T, d_model]
         #down_proj maps hidden FFN dimension back to model dimension
         self.down_proj = nn.Linear(d_ff, d_model, bias=False)
-
+        nn.init.zeros_(self.down_proj.weight)
     def forward(self, x):
         gate = self.gate_proj(x)
         up = self.up_proj(x)
@@ -109,7 +109,7 @@ class BidiAttention(nn.Module):
         self.k_proj = nn.Linear(d_model, d_model, bias=False)
         self.v_proj = nn.Linear(d_model, d_model, bias=False)
         self.out_proj = nn.Linear(d_model, d_model, bias=False)
-
+        nn.init.zeros_(self.out_proj.weight)
     def forward(self, x, pad_mask=None):
         B, T, D = x.shape
 
