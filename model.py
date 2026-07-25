@@ -8,6 +8,7 @@ from tqdm.auto import tqdm
 from pathlib import Path
 from data import ProteinCache, get_train_batch, get_eval_batch
 from preprocess import preprocess_fasta
+from normuon import SingleDeviceNorMuon
 
 #approx size of attention param (q/k/v/out param) ~4 * d_model^2
 #approx size of swiglu params (3* d_model * d_ff) --> 12 * d_model^2
@@ -45,7 +46,6 @@ class SwiGLU(nn.Module):
         # down_proj: [B, T, d_ff] -> [B, T, d_model]
         #down_proj maps hidden FFN dimension back to model dimension
         self.down_proj = nn.Linear(d_ff, d_model, bias=False)
-        nn.init.zeros_(self.down_proj.weight)
     def forward(self, x):
         gate = self.gate_proj(x)
         up = self.up_proj(x)
@@ -109,7 +109,6 @@ class BidiAttention(nn.Module):
         self.k_proj = nn.Linear(d_model, d_model, bias=False)
         self.v_proj = nn.Linear(d_model, d_model, bias=False)
         self.out_proj = nn.Linear(d_model, d_model, bias=False)
-        nn.init.zeros_(self.out_proj.weight)
     def forward(self, x, pad_mask=None):
         B, T, D = x.shape
 
@@ -266,11 +265,12 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model = model.to(device)
 muon_params, adamw_params, muon_names, adamw_names = split_params_for_muon(model)
 
-muon_optim = torch.optim.Muon(
+normuon_optim = SingleDeviceNorMuon(
     muon_params,
-    lr=1e-3,
-    weight_decay=0.01,
-    ns_steps=5,
+    lr=0.02,
+    weight_decay=0,
+    momentum=0.95,
+    beta2=0.95
 )
 
 adamw_optim = torch.optim.AdamW(
@@ -322,14 +322,14 @@ for step in pbar:
             ignore_index=-100
     )
 
-    muon_optim.zero_grad(set_to_none=True)
+    normuon_optim.zero_grad(set_to_none=True)
     adamw_optim.zero_grad(set_to_none=True)
 
     loss.backward()
 
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
 
-    muon_optim.step()
+    normuon_optim.step()
     adamw_optim.step()
 
     if step % log_every == 0 or step == 1:

@@ -8,6 +8,7 @@ The LLM is meant to:
 - Point out best practices e.g. type hints, debugging etc.
 
 The only fully LLM written code were the test codes (which are in a private colab file to ensure that my written code was working).
+The Normuon muon file was imported from [the official NorMuon repo](https://github.com/zichongli5/NorMuon/blob/main/normuon.py). This was used in the `model.py` file not the `orig_model.py` file which uses only muon and adamW.
 
 The orig_model file contains the un-optimised model with the exception of the torch.nn.functional.scaled_dot_product_attention instead of unoptimised attention. Even then the original code without the FlashAttention is just commented out.
 
